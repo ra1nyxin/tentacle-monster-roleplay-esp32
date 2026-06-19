@@ -1,133 +1,214 @@
 # Tentacle Monster Roleplay ESP32
 
-Camera-assisted roleplay tooling for Windows, iPhone Safari, and an ESP32-S3
-vibration bridge.
+一个用于“摄像头 + AI 剧本主持 + ESP32-S3 反馈设备”的本地角色扮演互动工具。
 
-The project has three small parts:
+项目目标是把现实画面接入 AI 互动流程：玩家用 iPhone 摄像头把当前场景传到电脑，AI 根据最新画面推进剧情；如果你有 ESP32-S3 反馈设备，也可以通过本项目的桥接脚本发送 `SET` / `HIT` / `STOP` 等控制命令。
 
-- A local HTTPS camera bridge. An iPhone opens a web page, selects front/rear
-  camera, and uploads frames to the Windows project folder.
-- A TCP-to-serial PowerShell bridge for an ESP32-S3 controller.
-- Small command-line helpers for bounded roleplay feedback patterns.
+> 本项目仅允许非商用使用。详见 [LICENSE](LICENSE)。
 
-This repository is source-available for non-commercial use only. See
-[LICENSE](LICENSE).
+## 功能概览
 
-## What This Is For
+- iPhone Safari 摄像头页面
+  - 支持前置/后置摄像头切换。
+  - 支持设置上传间隔。
+  - 通过 HTTPS 把画面上传到本机。
 
-The intended workflow is a roleplay game loop:
+- Windows 本地摄像头桥
+  - Node.js 服务监听 `7777` 端口。
+  - 持续覆盖保存最新画面到 `latest.jpg`。
+  - 同步保存帧信息到 `latest.json`。
 
-1. A phone camera provides the current real-world scene.
-2. An AI/game master reads the latest frame and interprets visible props,
-   posture, notes, screens, or room state as game context.
-3. The AI/game master advances a fictional scene.
-4. Optional ESP32-S3 feedback commands provide physical effects.
+- ESP32-S3 反馈设备桥
+  - PowerShell 串口桥连接 ESP32-S3。
+  - 本地 TCP 端口接收控制命令。
+  - Python CLI 发送 `PING`、`STATUS`、`SET`、`HIT`、`STOP` 等命令。
 
-The runtime frame files are deliberately ignored by git. Do not commit private
-camera captures.
+- 剧本互动辅助
+  - `剧本.txt` 提供一个示例剧本。
+  - `random-wave.py` 提供有时间上限的随机波动模式。
+  - 所有摄像头截图、日志、证书私钥都默认不进 git。
 
-## Requirements
+## 适合什么玩法
 
-- Windows 10 or later
+这个项目适合用来做“具身互动式 AI 剧本游戏”，例如：
+
+- AI 当剧本主持人，根据现实摄像头画面描述场景。
+- 玩家展示纸条、道具、服装、屏幕，AI 把它们当成剧情线索。
+- 玩家移动 iPhone 镜头探索现实空间，AI 根据画面生成下一步事件。
+- ESP32-S3 设备提供有界的物理反馈，用于增强沉浸感。
+
+推荐玩法循环：
+
+```text
+玩家动作或移动镜头
+        ↓
+iPhone 上传最新画面
+        ↓
+AI 读取 latest.jpg
+        ↓
+AI 根据剧本和画面推进剧情
+        ↓
+需要时发送 ESP32-S3 反馈命令
+```
+
+## 示例剧情：战败小屋场景
+
+仓库里附带的 `剧本.txt` 是一个示例 RPG 战败场景，用来展示这个项目的核心玩法。
+
+大致设定：
+
+- 玩家刚刚完成一场激烈战斗，法力值和体力都已经耗尽。
+- 玩家走进一座看似废弃的小屋，想整理装备、恢复状态。
+- 小屋阴影里潜伏着一只 `触手小怪物 Lv.20`。
+- 这只小怪物不是传统意义上的残暴敌人，而是调皮、好奇、爱捉弄人的 NPC。
+- 玩家当前无法正面战斗，只能躲避、交谈、投降、拖延，或者利用现场道具寻找机会。
+
+这个场景适合演示三种互动能力：
+
+1. **视觉观察**
+
+   玩家用 iPhone 摄像头展示现实中的装备、姿态、道具或纸条。AI 读取 `latest.jpg` 后，把真实画面转化为游戏里的“现场状态”。
+
+2. **怪物行为决策**
+
+   AI 扮演小怪物，根据玩家画面变化决定下一步动作。例如玩家抓紧装备、后退、伸手护住道具，小怪物就会判断玩家正在防备或准备逃跑。
+
+3. **有界反馈**
+
+   当剧情中发生触碰、魔法脉冲、陷阱触发、怪物突袭等事件时，AI 可以调用 ESP32-S3 反馈命令。推荐使用有明确上限的强度和持续时间，例如：
+
+   ```powershell
+   py .\vibration-control.py --hit 1
+   py .\vibration-control.py --hit 3
+   py .\random-wave.py --duration 30 --min 5 --max 25
+   ```
+
+示例主持风格：
+
+```text
+你是一个调皮的小怪物 NPC。
+玩家刚刚战败，魔力耗尽，正在废弃小屋里整理装备。
+你会观察 latest.jpg 里的真实画面，把玩家的姿态、服装、道具和动作转化为剧情反馈。
+你的目标是捉弄、试探和推进剧情，而不是伤害玩家。
+如果调用反馈设备，必须使用有界强度和明确时长。
+```
+
+这个剧本的重点不是固定台词，而是“现实画面驱动剧情”：玩家怎么摆道具、怎么移动镜头、怎么调整姿态，AI 就怎么解释现场，并推动怪物做出反应。
+
+## 环境要求
+
+- Windows 10 或更新版本
 - Node.js
 - PowerShell
-- OpenSSL available as `openssl.exe`
-- iPhone Safari on the same local network
-- Optional: ESP32-S3 serial bridge hardware for feedback control
+- OpenSSL，可在命令行中运行 `openssl.exe`
+- iPhone Safari，和 Windows 在同一个局域网
+- 可选：ESP32-S3 串口反馈设备
 
-No npm dependencies are required.
+项目不需要安装 npm 依赖。
 
-## Files
+## 文件说明
 
-- `server.js` - HTTPS camera bridge on port `7777`.
-- `public/index.html` - iPhone camera control page.
-- `start.bat` - generate local certificate if needed and start the bridge.
-- `stop.bat` - stop the camera bridge.
-- `status.bat` - show bridge status, connected phone, and latest frame metadata.
-- `esp32-bridge.ps1` - TCP-to-serial bridge for ESP32-S3 commands.
-- `vibration-control.py` - CLI client for the bridge.
-- `random-wave.py` - bounded random feedback pattern runner.
-- `stop-random-wave.bat` - request random feedback stop and send `STOP`.
-- `剧本.txt` - example roleplay scenario.
+核心文件：
 
-Generated runtime files:
+- `server.js`：本地 HTTPS 摄像头桥，监听 `7777`。
+- `public/index.html`：iPhone Safari 打开的摄像头控制页面。
+- `start.bat`：启动摄像头桥。
+- `stop.bat`：停止摄像头桥。
+- `status.bat`：查看摄像头桥、手机连接和最新帧状态。
+- `esp32-bridge.ps1`：ESP32-S3 TCP 到串口桥。
+- `vibration-control.py`：发送反馈控制命令的 Python CLI。
+- `random-wave.py`：有时间上限的随机波动控制脚本。
+- `stop-random-wave.bat`：请求停止随机波动并发送 `STOP`。
+- `剧本.txt`：示例角色扮演剧本。
+- `vibration-control使用教程.txt`：反馈控制脚本的简要说明。
 
-- `latest.jpg` - latest uploaded camera frame.
-- `latest.json` - metadata for the latest uploaded frame.
-- `server.log`, `server.err.log`, `server.pid` - local runtime files.
-- `certs/*.pem`, `certs/openssl.generated.cnf` - local HTTPS certificate files.
+运行时生成文件：
 
-These generated files are excluded by `.gitignore`.
+- `latest.jpg`：手机上传的最新画面。
+- `latest.json`：最新画面的元数据。
+- `server.log` / `server.err.log` / `server.pid`：本地服务运行文件。
+- `certs/*.pem`：本地 HTTPS 自签名证书。
+- `certs/openssl.generated.cnf`：运行时生成的 OpenSSL 配置。
 
-## Start The Camera Bridge
+这些运行时文件已经写入 `.gitignore`，不会被提交。
 
-Run:
+## 启动摄像头桥
+
+双击：
 
 ```bat
 start.bat
 ```
 
-The script will:
+脚本会自动完成：
 
-1. Generate a self-signed local HTTPS certificate if `certs/key.pem` and
-   `certs/cert.pem` do not exist.
-2. Start `node server.js` in the background.
-3. Print local network URLs such as:
+1. 检查 `certs/key.pem` 和 `certs/cert.pem` 是否存在。
+2. 如果证书不存在，调用 `scripts/generate-cert.ps1` 生成本地 HTTPS 自签名证书。
+3. 后台启动 `node server.js`。
+4. 输出 iPhone Safari 应该打开的局域网 HTTPS 地址，例如：
 
 ```text
-https://YOUR-LAN-IP:7777/
+https://你的局域网IP:7777/
 ```
 
-Open that HTTPS URL on iPhone Safari. Because the certificate is self-signed,
-Safari may show a warning. Continue to the site for local use.
+第一次在 iPhone Safari 打开自签名 HTTPS 页面时，可能会看到证书警告。这个证书只用于你的局域网本地服务，继续访问即可。
 
-## iPhone Camera Page
+## 使用 iPhone 摄像头页面
 
-On the iPhone page:
+在 iPhone Safari 打开 `start.bat` 输出的地址后：
 
-1. Choose rear or front camera.
-2. Choose the capture interval.
-3. Tap `Start`.
-4. Allow camera access.
+1. 选择摄像头方向：
+   - 后置摄像头
+   - 前置摄像头
+2. 设置捕获间隔。
+3. 点击 `开始`。
+4. Safari 询问摄像头权限时选择允许。
 
-The page uploads JPEG frames to the local Node.js server. The server overwrites
-`latest.jpg` and `latest.json` with each new frame.
+页面会把 JPEG 帧上传到 Windows，本地会持续更新：
 
-## Stop The Camera Bridge
+```text
+latest.jpg
+latest.json
+```
 
-Run:
+如果要停止上传，在网页里点 `停止`。
+
+## 停止摄像头桥
+
+双击：
 
 ```bat
 stop.bat
 ```
 
-It stops the PID recorded in `server.pid` and also falls back to stopping a Node
-process listening on port `7777`.
+它会优先读取 `server.pid` 停止服务。如果 PID 文件不存在，也会尝试停止正在监听 `7777` 端口的 Node 进程。
 
-## Check Status
+## 查看状态
 
-Run:
+双击：
 
 ```bat
 status.bat
 ```
 
-It reports:
+它会显示：
 
-- Whether port `7777` is listening.
-- Whether a phone client is connected.
-- Latest frame metadata from `latest.json`.
-- Whether `latest.jpg` exists and when it was updated.
+- `7777` 端口是否正在监听。
+- 是否有 iPhone 客户端连接。
+- `latest.json` 中的帧数、更新时间、摄像头方向、分辨率。
+- `latest.jpg` 是否存在以及最后更新时间。
 
-## ESP32-S3 Serial Bridge
+如果 AI 没有读到新画面，先运行这个脚本确认手机是否还在上传。
 
-Start the PowerShell bridge in a separate terminal:
+## 启动 ESP32-S3 桥
+
+在 PowerShell 中运行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\esp32-bridge.ps1 -SerialPort COM3
 ```
 
-Options:
+常用参数：
 
 ```powershell
 -SerialPort COM3
@@ -136,7 +217,9 @@ Options:
 -ListenPort 25363
 ```
 
-The bridge accepts short TCP commands and forwards them to the serial device:
+桥脚本会监听本机 TCP 端口，并把收到的短命令转发给串口设备。
+
+支持的命令包括：
 
 - `PING`
 - `STATUS`
@@ -146,75 +229,132 @@ The bridge accepts short TCP commands and forwards them to the serial device:
 - `HIT <damage>`
 - `STOP`
 
-## Vibration CLI
+## 使用反馈控制 CLI
 
-Use:
+测试桥是否在线：
 
 ```powershell
 py .\vibration-control.py --ping
+```
+
+查看状态：
+
+```powershell
 py .\vibration-control.py --status
+```
+
+直接设置强度：
+
+```powershell
 py .\vibration-control.py --set 20
+```
+
+发送一次事件式反馈：
+
+```powershell
 py .\vibration-control.py --hit 3
+```
+
+停止：
+
+```powershell
 py .\vibration-control.py --stop
 ```
 
-`--set` directly sets an intensity level. `--hit` sends a bounded event-style
-command and lets the device firmware map it to feedback behavior.
+说明：
 
-## Random Wave
+- `--set` 是直接设置强度等级。
+- `--hit` 是发送一次事件，让设备固件自己映射为反馈效果。
+- 推荐所有自动反馈都设置时间上限和强度上限。
 
-Run a bounded random pattern:
+## 随机波动模式
+
+运行一个有边界的随机波动：
 
 ```powershell
 py .\random-wave.py --duration 60 --min 5 --max 35
 ```
 
-Stop early:
+参数含义：
+
+- `--duration`：持续秒数。
+- `--min`：最低强度。
+- `--max`：最高强度。
+- `--min-sleep`：两次变化之间的最短等待时间。
+- `--max-sleep`：两次变化之间的最长等待时间。
+
+提前停止：
 
 ```bat
 stop-random-wave.bat
 ```
 
-The random runner always sends `STOP` when it exits.
+`random-wave.py` 退出时会自动发送 `STOP`。
 
-## AI Image Workflow
+## AI 如何读取画面
 
-There are two supported image workflows.
+有两种方式。
 
-### 1. Direct Uploaded Images
+### 方式一：聊天中直接发图片
 
-In a chat UI that supports image input, send an image directly. It may appear as
-something like:
+如果你使用的聊天界面支持图片输入，可以直接把截图或照片发给 AI。聊天里可能会显示成：
 
 ```text
 [Image #1]
 ```
 
-The AI can inspect that image and respond with description, translation,
-scene interpretation, or game state updates.
+AI 可以直接分析这张图片，例如识别文字、描述场景、判断道具、翻译界面、推进剧情。
 
-### 2. Local Camera Frame
+### 方式二：读取本地 latest.jpg
 
-When the iPhone camera page is running, the AI/game master can inspect:
+当 iPhone 页面正在上传画面时，AI 可以读取项目目录里的：
 
 ```text
 latest.jpg
 ```
 
-Example prompt:
+示例提示：
 
 ```text
-Observe the scene from latest.jpg and continue the roleplay.
+观察 latest.jpg，把它作为当前游戏场景继续剧情。
 ```
 
-The AI should treat visible objects as authoritative and avoid inventing objects
-that are not visible.
+建议 AI 遵守：
 
-## Roleplay Safety And Runtime Notes
+- 只把画面中真实可见的东西当成事实。
+- 不要凭空添加画面里没有的物品。
+- 可以把可见物品、姿态、纸条、屏幕内容解释为剧情线索。
 
-- This project controls local hardware. Keep feedback bounded by duration and
-  maximum intensity.
-- Keep a stop command available.
-- Do not commit generated camera frames, logs, certificates, or local metadata.
-- Review scripts before running them with hardware attached.
+## 推荐剧本主持规则
 
+可以给 AI 这样的主持规则：
+
+```text
+你是本局剧本主持人。
+玩家会用 iPhone 摄像头给你提供现实画面。
+当玩家说“观察现场”时，你读取 latest.jpg。
+你只描述画面中真实可见的内容，并把它们转化为剧情线索。
+如果需要物理反馈，必须使用有界的强度和时长。
+```
+
+## 发布与隐私注意
+
+- 不要提交 `latest.jpg`，它可能包含私人画面。
+- 不要提交 `latest.json`、日志、PID、stop 文件。
+- 不要提交 `certs/*.pem`，它们是本地证书和私钥。
+- 发布前建议运行：
+
+```powershell
+rg -n "你的用户名|你的本机目录名|硬编码IP" .
+git status --ignored
+```
+
+## 许可证
+
+本项目使用非商用源码许可证：
+
+- 允许个人、学习、研究、非商用二次开发。
+- 允许非商用分发修改版。
+- 禁止商业使用、付费服务、转售、商业集成或其他盈利用途。
+
+完整条款见 [LICENSE](LICENSE)。
