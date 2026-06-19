@@ -368,6 +368,52 @@ latest.jpg
 如果需要物理反馈，必须使用有界的强度和时长。
 ```
 
+## 使用 OpenAI Codex 作为剧本主持
+
+本项目可以直接配合 OpenAI 的 Codex 使用。推荐做法是先让 Codex 熟悉仓库和剧本，再开始互动。
+
+实测环境：
+
+- OpenAI Codex
+- GPT-5.5 模型
+- Windows 本地 Node.js 摄像头桥
+- PowerShell ESP32-S3 串口桥
+- iPhone Safari 摄像头页面
+
+推荐启动提示词：
+
+```text
+请先阅读当前仓库的 README.md、剧本.txt、vibration-control使用教程.txt、
+firmware/esp32s3-galaku/README.md，并熟悉 start.bat、status.bat、
+esp32-bridge.ps1、vibration-control.py、random-wave.py 的用途。
+
+接下来你是本局 RPG 剧本主持人。
+当我说“观察现场”时，你读取 latest.jpg 并把画面作为当前场景。
+当剧情需要反馈设备时，你根据剧本动作调用 vibration-control.py，
+但必须使用有界强度和明确时长。
+先不要开始剧情，读完后只总结你理解的玩法和可用工具。
+```
+
+等 Codex 熟悉后，再发送：
+
+```text
+开始游戏。
+```
+
+之后就可以进入循环：
+
+```text
+玩家动作 / 摄像头画面变化
+        ↓
+Codex 读取 latest.jpg
+        ↓
+Codex 根据剧本推进剧情
+        ↓
+需要时调用 vibration-control.py 或 random-wave.py
+```
+
+建议让 Codex 每次调用设备前先根据画面判断玩家反应，不要只按固定台词推进。这样玩法会更像“具身智能剧本主持”，而不是普通文字跑团。
+
 ## 发布与隐私注意
 
 - 不要提交 `latest.jpg`，它可能包含私人画面。
