@@ -1,0 +1,113 @@
+vibration-control.py 使用教程
+==============================
+
+用途
+----
+
+这个脚本用于直接连接震动器 PowerShell TCP 串口桥，发送 ESP32-S3 控制命令。
+
+默认连接：
+
+  127.0.0.1:25363
+
+也就是默认要求你已经在本机启动 PowerShell 串口桥脚本。
+
+如果桥监听在别的机器或端口，用 --host / --port 指定。
+
+
+常用命令
+--------
+
+查看帮助：
+
+  py .\vibration-control.py --help
+
+测试桥是否通：
+
+  py .\vibration-control.py --ping
+
+查看 ESP32-S3 / 震动器状态：
+
+  py .\vibration-control.py --status
+
+扫描或重连震动器：
+
+  py .\vibration-control.py --scan
+
+查看服务枚举：
+
+  py .\vibration-control.py --services
+
+直接设定强度：
+
+  py .\vibration-control.py --set 10
+  py .\vibration-control.py --set 30
+
+模拟触摸玩家或用力触摸玩家或拍打玩家等反馈：
+
+  py .\vibration-control.py --hit 1
+  py .\vibration-control.py --hit 10
+
+停止：
+
+  py .\vibration-control.py --stop
+
+
+set 和 hit 的区别
+-----------------
+
+--set 是直接设定强度。
+
+例如：
+
+  --set 30
+
+会发送：
+
+  SET 30
+
+--hit 是模拟一次反馈，传的是 damage，不是直接强度。
+
+例如：
+
+  --hit 1
+
+会发送：
+
+  HIT 1
+
+ESP32-S3 固件会把 damage 换算成强度增量再叠加到当前强度。
+
+
+远程桥
+------
+
+如果 PowerShell 桥不在本机，例如桥运行在另一台 Windows 机器上：
+
+  py .\vibration-control.py --host <桥所在机器IP> --port 25363 --ping
+
+
+raw 命令
+--------
+
+高级调试时可以直接发原始命令：
+
+  py .\vibration-control.py --raw STATUS
+  py .\vibration-control.py --raw "SET 10"
+
+raw 命令只允许可打印 ASCII，长度不能超过 64 字符。
+
+
+输出说明
+--------
+
+脚本会打印：
+
+  <= 发送的命令
+  => 桥或 ESP32-S3 返回的协议结果
+
+脚本会过滤 ESP32-S3 的 NimBLE 调试日志，只保留 PONG / STATUS / OK / ERR / SERVICES 这类协议结果行。
+
+--------
+
+剧本补充：由于你的触手带有魔法酸液或魔法电感，你每次触摸玩家那么玩家都会被你的魔法持续施加七秒的震动，如果七秒内没有继续再次触摸玩家那么会逐渐降低震动强度到0。但如果在触摸后的七秒内继续再次用hit命令触摸那么会叠加施放的魔法强度。也就是如果你连续或快速的发送hit那么你施放给玩家的魔法伤害会被叠加。

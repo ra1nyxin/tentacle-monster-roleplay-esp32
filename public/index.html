@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>iPhone Camera Bridge</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b1020;
+      color: #edf2ff;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(145deg, #0b1020, #16213f 55%, #0d172d);
+    }
+
+    main {
+      box-sizing: border-box;
+      width: min(920px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    h1 {
+      margin: 8px 0 14px;
+      font-size: 24px;
+    }
+
+    .panel {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(10, 16, 32, 0.78);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: #b8c3de;
+      font-size: 13px;
+    }
+
+    select,
+    input,
+    button {
+      min-height: 42px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: #111a31;
+      color: #edf2ff;
+      font: inherit;
+      padding: 0 12px;
+    }
+
+    button {
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: #4f46e5;
+      border-color: #6d63ff;
+    }
+
+    button.stop {
+      background: #7f1d1d;
+      border-color: #b91c1c;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    video {
+      width: 100%;
+      max-height: 68vh;
+      background: #020617;
+      border-radius: 8px;
+      object-fit: contain;
+    }
+
+    .status {
+      margin-top: 10px;
+      min-height: 24px;
+      color: #bfdbfe;
+      font-size: 14px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .hint {
+      margin-top: 10px;
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    @media (max-width: 640px) {
+      .controls,
+      .buttons {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>iPhone Camera Bridge</h1>
+    <section class="panel">
+      <div class="controls">
+        <label>
+          摄像头方向
+          <select id="facing">
+            <option value="environment">后置摄像头</option>
+            <option value="user">前置摄像头</option>
+          </select>
+        </label>
+        <label>
+          捕获间隔，毫秒
+          <input id="interval" type="number" min="200" max="5000" step="100" value="1000">
+        </label>
+      </div>
+
+      <div class="buttons">
+        <button id="start" class="primary">开始</button>
+        <button id="stop" class="stop" disabled>停止</button>
+        <button id="snap" disabled>立即抓一张</button>
+      </div>
+
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="canvas"></canvas>
+      <div id="status" class="status">等待开始。第一次打开 HTTPS 自签名证书页面时，Safari 可能需要你点继续访问。</div>
+      <div class="hint">
+        页面会把当前画面压缩成 JPEG 上传到 Windows，服务端始终覆盖保存为 <b>latest.jpg</b>。
+        建议 iPhone 和 Windows 在同一个 Wi-Fi 下，优先用后置摄像头。
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const facing = document.getElementById("facing");
+    const intervalInput = document.getElementById("interval");
+    const startButton = document.getElementById("start");
+    const stopButton = document.getElementById("stop");
+    const snapButton = document.getElementById("snap");
+    const statusBox = document.getElementById("status");
+
+    let stream = null;
+    let timer = null;
+    let frameCount = 0;
+    let sending = false;
+
+    function setStatus(text) {
+      statusBox.textContent = text;
+    }
+
+    async function getCameraStream() {
+      const selectedFacing = facing.value;
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: selectedFacing },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      };
+
+      try {
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (firstError) {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: selectedFacing },
+        });
+      }
+    }
+
+    async function start() {
+      if (!window.isSecureContext) {
+        setStatus("当前页面不是安全上下文。iPhone Safari 需要用 https:// 打开这个页面。");
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus("这个浏览器不支持 getUserMedia。请用 iPhone Safari 打开。");
+        return;
+      }
+
+      stop();
+      try {
+        stream = await getCameraStream();
+        video.srcObject = stream;
+        await video.play();
+
+        startButton.disabled = true;
+        stopButton.disabled = false;
+        snapButton.disabled = false;
+        facing.disabled = true;
+        intervalInput.disabled = true;
+
+        setStatus("摄像头已启动，正在上传画面...");
+        await captureAndSend();
+        timer = setInterval(captureAndSend, Math.max(200, Number(intervalInput.value) || 1000));
+      } catch (err) {
+        setStatus("启动失败：" + err.message);
+      }
+    }
+
+    function stop() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+
+      if (stream) {
+        for (const track of stream.getTracks()) {
+          track.stop();
+        }
+        stream = null;
+      }
+
+      video.srcObject = null;
+      startButton.disabled = false;
+      stopButton.disabled = true;
+      snapButton.disabled = true;
+      facing.disabled = false;
+      intervalInput.disabled = false;
+
+      if (frameCount > 0) {
+        setStatus(`已停止。最后上传帧数：${frameCount}`);
+      }
+    }
+
+    async function captureAndSend() {
+      if (!stream || sending || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        return;
+      }
+
+      sending = true;
+      try {
+        const width = video.videoWidth || 1280;
+        const height = video.videoHeight || 720;
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { alpha: false });
+        ctx.drawImage(video, 0, 0, width, height);
+
+        const image = canvas.toDataURL("image/jpeg", 0.82);
+        const res = await fetch("/frame", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image,
+            camera: facing.value,
+            width,
+            height,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        const data = await res.json();
+        frameCount = data.frameCount;
+        setStatus(`已上传 ${frameCount} 帧，${width}x${height}，latest.jpg 已更新：${new Date().toLocaleTimeString()}`);
+      } catch (err) {
+        setStatus("上传失败：" + err.message);
+      } finally {
+        sending = false;
+      }
+    }
+
+    startButton.addEventListener("click", start);
+    stopButton.addEventListener("click", stop);
+    snapButton.addEventListener("click", captureAndSend);
+    window.addEventListener("pagehide", stop);
+  </script>
+</body>
+</html>
