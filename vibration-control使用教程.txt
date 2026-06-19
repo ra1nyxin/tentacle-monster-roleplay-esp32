@@ -79,6 +79,93 @@ set 和 hit 的区别
 ESP32-S3 固件会把 damage 换算成强度增量再叠加到当前强度。
 
 
+高级持续命令
+------------
+
+高级模式必须把 --advanced 放在 vibration-control.py 后面的第一个参数位置：
+
+  py .\vibration-control.py --advanced ...
+
+只有进入 --advanced 后，下面这些高级参数才会生效。这样可以避免和普通的一次性
+--hit / --set / --stop / --status 参数冲突。
+
+高级模式会在一段时间内重复发送命令：
+
+  --time       总持续时间，单位秒
+  --interval   每次发送之间的间隔，单位秒
+  --hit        固定 damage 的重复 HIT
+  --randomhit  在 MIN-MAX 范围内随机 damage 的重复 HIT
+  --set        固定强度的重复 SET
+  --randomset  在 MIN-MAX 范围内随机强度的重复 SET
+
+持续 120 秒，每 2 秒随机 HIT 一次，damage 在 0 到 100 之间随机：
+
+  py .\vibration-control.py --advanced --randomhit 0-100 --time 120 --interval 2
+
+持续 200 秒，每 5 秒 HIT 一次，damage 固定为 100：
+
+  py .\vibration-control.py --advanced --hit 100 --time 200 --interval 5
+
+持续 90 秒，每 1.5 秒随机 HIT 一次，适合做不规律拍打或小怪连续干扰：
+
+  py .\vibration-control.py --advanced --randomhit 5-35 --time 90 --interval 1.5
+
+持续 60 秒，每 0.8 秒随机 HIT 一次，适合表现急促但强度不稳定的攻击节奏：
+
+  py .\vibration-control.py --advanced --randomhit 10-60 --time 60 --interval 0.8
+
+持续 45 秒，每 3 秒 HIT 一次，适合节奏很慢但存在压迫感的场景：
+
+  py .\vibration-control.py --advanced --hit 25 --time 45 --interval 3
+
+持续 30 秒，每 1 秒直接随机设定强度，适合做环境魔法场、黏液陷阱、电流地板之类的连续波动：
+
+  py .\vibration-control.py --advanced --randomset 0-40 --time 30 --interval 1
+
+持续 20 秒，每 0.5 秒把强度固定设为 15，适合做稳定的背景干扰：
+
+  py .\vibration-control.py --advanced --set 15 --time 20 --interval 0.5
+
+前台运行时，按 Ctrl+C 可以中断当前高级循环。
+
+
+高级后台运行
+------------
+
+在高级模式最后加 --background，可以把持续命令放到后台运行：
+
+  py .\vibration-control.py --advanced --hit 100 --time 200 --interval 5 --background
+
+后台运行适合让模型一边执行触手拍打玩家的设备反馈，一边继续读取摄像头画面观察玩家反应。
+
+例如模型可以先启动后台反馈：
+
+  py .\vibration-control.py --advanced --randomhit 20-80 --time 120 --interval 2 --background
+
+然后继续去查看最新画面：
+
+  读取 latest.jpg，观察玩家姿势、表情、动作变化，再决定下一句剧情和下一轮设备反馈。
+
+如果想让反馈更像多只小怪物轮流进攻，可以用较短间隔和随机强度：
+
+  py .\vibration-control.py --advanced --randomhit 15-70 --time 180 --interval 1 --background
+
+如果想让 Boss 攻击更像蓄力后的稳定重击，可以用较长间隔和固定 HIT：
+
+  py .\vibration-control.py --advanced --hit 100 --time 240 --interval 6 --background
+
+如果想让场景里一直存在轻微魔法压制，同时把主要剧情交给模型继续推进：
+
+  py .\vibration-control.py --advanced --randomset 5-20 --time 300 --interval 2 --background
+
+后台命令会按照 --time 自动结束。普通的 --stop 可以立刻让设备停止当前输出：
+
+  py .\vibration-control.py --stop
+
+但如果后台高级命令还没跑完，它后续到达 interval 时还会继续发送下一次命令。
+所以后台命令建议把 --time 写成明确的剧情片段长度，例如 30、60、120、180 秒。
+
+
 远程桥
 ------
 
