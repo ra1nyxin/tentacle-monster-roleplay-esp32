@@ -119,6 +119,7 @@ AI 根据剧本和画面推进剧情
 - `vibration-control.py`：发送反馈控制命令的 Python CLI。
 - `random-wave.py`：有时间上限的随机波动控制脚本。
 - `stop-random-wave.bat`：请求停止随机波动并发送 `STOP`。
+- `firmware/esp32s3-galaku/`：ESP32-S3 固件源码。
 - `剧本.txt`：示例角色扮演剧本。
 - `vibration-control使用教程.txt`：反馈控制脚本的简要说明。
 
@@ -201,6 +202,36 @@ status.bat
 如果 AI 没有读到新画面，先运行这个脚本确认手机是否还在上传。
 
 ## 启动 ESP32-S3 桥
+
+在启动 Windows 侧桥脚本之前，需要先把固件烧录到 ESP32-S3。
+
+固件源码位于：
+
+```text
+firmware/esp32s3-galaku/
+```
+
+进入固件目录：
+
+```powershell
+cd firmware\esp32s3-galaku
+```
+
+构建并烧录：
+
+```powershell
+idf.py set-target esp32s3
+idf.py build
+idf.py -p COM3 flash monitor
+```
+
+如果你的开发板不是 `COM3`，把端口改成自己的实际串口。更详细的固件说明见：
+
+```text
+firmware/esp32s3-galaku/README.md
+```
+
+烧录完成后，再回到仓库根目录启动 PowerShell 桥：
 
 在 PowerShell 中运行：
 

@@ -16,9 +16,16 @@ certs/openssl.generated.cnf
 __pycache__/
 *.py[cod]
 
+# ESP-IDF local build outputs
+firmware/**/build/
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
+firmware/**/*.bin
+firmware/**/*.elf
+firmware/**/*.map
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
