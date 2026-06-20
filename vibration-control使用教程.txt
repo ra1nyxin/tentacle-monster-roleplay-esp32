@@ -166,6 +166,108 @@ ESP32-S3 固件会把 damage 换算成强度增量再叠加到当前强度。
 所以后台命令建议把 --time 写成明确的剧情片段长度，例如 30、60、120、180 秒。
 
 
+实时场景调用范式
+----------------
+
+这个项目不是回合制。模型不应该先阻塞发送一段强度，等结束后才读取 latest.jpg。
+
+正确做法是：
+
+  1. 先用 --background 启动一段有明确时间上限的反馈。
+  2. 立刻读取 latest.jpg。
+  3. 根据画面判断玩家的实时反应。
+  4. 再决定下一段剧情、目标护甲、触手动作和强度。
+
+模型应该重点观察：
+
+  - 玩家是否捂住某个位置
+  - 玩家是否夹紧、松开、翻身或后退
+  - 玩家是否用手拉住护甲或挡住战服边缘
+  - 哪个护甲位置可能已经松动
+  - 哪个位置正在承受魔法伤害
+  - 玩家是否因为上一段反馈暴露了新的弱点
+
+模型可以在剧情里这样安排：
+
+  先启动后台反馈：
+
+    py .\vibration-control.py --advanced --randomhit 20-60 --time 60 --interval 1.5 --background
+
+  然后立刻读取 latest.jpg：
+
+    观察玩家是否捂住战服边缘、是否夹紧双腿、是否试图挡住某个护甲薄弱点。
+
+  再根据画面继续：
+
+    如果玩家捂住右侧战服边缘，说明那里可能是弱点。
+    如果玩家夹紧双腿，说明触手可能被固定，但魔法传导也可能更稳定。
+    如果玩家松开并后仰，说明上一段随机节奏可能已经打断玩家防御。
+
+
+实时示例命令
+------------
+
+低强度试探，适合刚进入场景时观察玩家会保护哪里：
+
+  py .\vibration-control.py --advanced --randomhit 5-25 --time 45 --interval 2 --background
+
+稳定压制，适合让玩家误以为自己已经适应：
+
+  py .\vibration-control.py --advanced --hit 25 --time 60 --interval 2 --background
+
+停顿感更强的随机拍打，适合测试玩家是否会突然捂住某个位置：
+
+  py .\vibration-control.py --advanced --randomhit 20-70 --time 90 --interval 3 --background
+
+急促小怪围攻，适合多只小怪物轮流干扰：
+
+  py .\vibration-control.py --advanced --randomhit 10-55 --time 120 --interval 0.8 --background
+
+战服夹层压制，适合玩家护甲已经被标记或松动后使用：
+
+  py .\vibration-control.py --advanced --randomhit 35-85 --time 90 --interval 1.2 --background
+
+Boss 蓄力重击，适合剧情里怪物读心后抓住破绽：
+
+  py .\vibration-control.py --advanced --hit 100 --time 120 --interval 5 --background
+
+环境魔法场，适合沼泽、史莱姆湖、藤蔓巢穴、电流地板等场景：
+
+  py .\vibration-control.py --advanced --randomset 5-35 --time 180 --interval 2 --background
+
+护甲破防尝试，适合怪物正在寻找战斗短裤边缘或手套袖口弱点：
+
+  py .\vibration-control.py --advanced --randomhit 15-45 --time 75 --interval 1.5 --background
+
+五分钟绝招，适合已经进入战败压制阶段：
+
+  py .\vibration-control.py --advanced --randomhit 20-85 --time 300 --interval 1.2 --background
+
+残留余波，适合战败后让场景慢慢冷却：
+
+  py .\vibration-control.py --advanced --randomset 3-15 --time 60 --interval 2 --background
+
+
+给模型的实时提示词示例
+----------------------
+
+可以把下面这段直接给模型：
+
+  这是实时场景，不是回合制。
+  如果你需要持续反馈，优先调用 vibration-control.py --advanced ... --background。
+  调用后台反馈后不要等待它结束，立刻读取 latest.jpg。
+  你要根据画面判断玩家捂住哪里、挡住哪里、哪件护甲正在保护弱点、
+  哪个位置已经被上一段反馈影响。
+  然后继续推进剧情并决定下一段强度。
+
+更具体的提示词：
+
+  如果你看到玩家用手按住某个护甲边缘，就把那里记录为护甲薄弱点。
+  如果你看到玩家夹紧双腿，不要只认为玩家防御成功，也要判断触手是否被固定得更利于魔法传导。
+  如果你看到玩家松开、后仰、喘气或动作变慢，说明上一段反馈可能已经打断防御节奏。
+  如果你需要继续压制，不要阻塞等待，直接启动下一段 --background，然后再次读取 latest.jpg。
+
+
 远程桥
 ------
 
